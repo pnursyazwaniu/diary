@@ -126,6 +126,7 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Wani's Diary"),
+        centerTitle: true,
       ),
       body: _isLoading
           ? const Center(
@@ -148,14 +149,32 @@ class _HomePageState extends State<HomePage> {
                       child: Row(
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.edit),
-                            onPressed: () => _showForm(_diaries[index]['id']),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete),
-                            onPressed: () =>
-                                _deleteDiary(_diaries[index]['id']),
-                          ),
+  icon: const Icon(Icons.delete, color: Colors.redAccent), // Warna merah untuk amaran
+  onPressed: () {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text("Confirm Delete"),
+          content: const Text("Are you sure you want to delete this diary entry?"),
+          actions: [
+            TextButton(
+              child: const Text("Cancel"),
+              onPressed: () => Navigator.of(context).pop(), // Tutup popup tanpa buat apa-apa
+            ),
+            TextButton(
+              child: const Text("Delete", style: TextStyle(color: Colors.red)),
+              onPressed: () {
+                _deleteDiary(_diaries[index]['id']); // Panggil fungsi padam asal
+                Navigator.of(context).pop(); // Tutup popup selepas padam
+              },
+            ),
+          ],
+        );
+      },
+    );
+  },
+),
                         ],
                       ),
                     )),
