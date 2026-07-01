@@ -9,11 +9,12 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  // All diaries
   List<Map<String, dynamic>> _diaries = [];
-
   bool _isLoading = true;
-  // This function is used to fetch all data from the database
+
+  final TextEditingController _feelingController = TextEditingController();
+  final TextEditingController _descriptionController = TextEditingController();
+
   void _refreshDiaries() async {
     final data = await SQLHelper.getDiaries();
     setState(() {
@@ -27,9 +28,6 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     _refreshDiaries(); // Loading the diary when the app starts
   }
-
-  final TextEditingController _feelingController = TextEditingController();
-  final TextEditingController _descriptionController = TextEditingController();
 
   // This function will be triggered when the floating button is pressed
   // It will also be triggered when you want to update a diary
@@ -75,20 +73,24 @@ class _HomePageState extends State<HomePage> {
                   ),
                   ElevatedButton(
                     onPressed: () async {
-                      // Save new diary
+                      final feeling = _feelingController.text.trim();
+                      final description = _descriptionController.text.trim();
+
+                      if (feeling.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Please enter your feeling.')),
+                        );
+                        return;
+                      }
+
                       if (id == null) {
-                        await _addDiary();
+                        await _addDiary(feeling, description);
+                      } else {
+                        await _updateDiary(id, feeling, description);
                       }
 
-                      if (id != null) {
-                        await _updateDiary(id);
-                      }
-
-                      // Clear the text fields
-                      _feelingController.text = '';
-                      _descriptionController.text = '';
-
-                      // Close the bottom sheet
+                      _feelingController.clear();
+                      _descriptionController.clear();
                       Navigator.of(context).pop();
                     },
                     child: Text(id == null ? 'Create New' : 'Update'),
@@ -98,27 +100,50 @@ class _HomePageState extends State<HomePage> {
             ));
   }
 
-// Insert a new diary to the database
-  Future<void> _addDiary() async {
-    await SQLHelper.createDiary(
-        _feelingController.text, _descriptionController.text);
+  Future<void> _addDiary(String feeling, String description) async {
+    await SQLHelper.createDiary(feeling, description);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Diary added to your dashboard.')),
+    );
     _refreshDiaries();
   }
 
-  // Update an existing diary
-  Future<void> _updateDiary(int id) async {
-    await SQLHelper.updateDiary(
-        id, _feelingController.text, _descriptionController.text);
+  Future<void> _updateDiary(int id, String feeling, String description) async {
+    await SQLHelper.updateDiary(id, feeling, description);
     _refreshDiaries();
   }
 
-  // Delete an item
   Future<void> _deleteDiary(int id) async {
     await SQLHelper.deleteDiary(id);
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      content: Text('Successfully deleted a diary!'),
+      content: Text('Diary deleted successfully.'),
     ));
     _refreshDiaries();
+  }
+
+  Future<void> _showDeleteDialog(int id) async {
+    await showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Confirm Delete'),
+          content: const Text('Are you sure you want to delete this diary entry?'),
+          actions: [
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            TextButton(
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+              onPressed: () {
+                _deleteDiary(id);
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -132,54 +157,33 @@ class _HomePageState extends State<HomePage> {
           ? const Center(
               child: CircularProgressIndicator(),
             )
-          : ListView.builder(
-              itemCount: _diaries.length,
-              itemBuilder: (context, index) => Card(
-                color: Colors.tealAccent,
-                margin: const EdgeInsets.all(10),
-                child: ListTile(
-                    leading: CircleAvatar(
-                              child: Image.asset('assets/images/happy.gif'),
-                              backgroundColor: Colors.tealAccent,
-                    ),
-                    title: Text(_diaries[index]['feeling']),
-                    subtitle: Text(_diaries[index]['description'] + '\n\n'+ _diaries[index]['createdAt']),
-                    trailing: SizedBox(
-                      width: 100,
-                      child: Row(
-                        children: [
-                          IconButton(
-  icon: const Icon(Icons.delete, color: Colors.redAccent), // Warna merah untuk amaran
-  onPressed: () {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text("Confirm Delete"),
-          content: const Text("Are you sure you want to delete this diary entry?"),
-          actions: [
-            TextButton(
-              child: const Text("Cancel"),
-              onPressed: () => Navigator.of(context).pop(), // Tutup popup tanpa buat apa-apa
-            ),
-            TextButton(
-              child: const Text("Delete", style: TextStyle(color: Colors.red)),
-              onPressed: () {
-                _deleteDiary(_diaries[index]['id']); // Panggil fungsi padam asal
-                Navigator.of(context).pop(); // Tutup popup selepas padam
-              },
-            ),
-          ],
-        );
-      },
-    );
-  },
-),
-                        ],
+          : _diaries.isEmpty
+              ? const Center(
+                  child: Text('No diary yet. Add one to start confessing.'),
+                )
+              : ListView.builder(
+                  itemCount: _diaries.length,
+                  itemBuilder: (context, index) => Card(
+                    color: Colors.tealAccent,
+                    margin: const EdgeInsets.all(10),
+                    child: ListTile(
+                      leading: const CircleAvatar(
+                        backgroundColor: Colors.teal,
+                        child: Icon(Icons.favorite, color: Colors.white),
                       ),
-                    )),
-              ),
-            ),
+                      title: Text(_diaries[index]['feeling']),
+                      subtitle: Text(
+                        '${_diaries[index]['description'] ?? ''}\n\n${_diaries[index]['createdAt'] ?? ''}',
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.redAccent),
+                        onPressed: () => _showDeleteDialog(_diaries[index]['id']),
+                      ),
+                    ),
+                  ),
+                ),
       floatingActionButton: FloatingActionButton(
         child: const Icon(Icons.add),
         onPressed: () => _showForm(null),
